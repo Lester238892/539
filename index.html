@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今彩539 數據研究平台</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0e17;--surface:#111827;--surface2:#1a2236;--border:#1e2d4a;--accent:#f59e0b;--accent2:#3b82f6;--accent3:#10b981;--red:#ef4444;--purple:#a855f7;--text:#e2e8f0;--muted:#64748b;--dim:#334155}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+.header{padding:24px 20px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#111827,var(--bg))}
+.header h1{font-size:20px;font-weight:900;background:linear-gradient(135deg,var(--accent),#fbbf24);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.header .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.tabs{display:flex;padding:0 8px;border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:12px 10px;font-size:11px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:12px 16px;padding:16px;animation:fadeIn .4s ease}
+.card-title{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 16px}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center}
+.stat-val{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:700;color:var(--accent)}
+.stat-label{font-size:10px;color:var(--muted);margin-top:2px}
+.freq-row{display:flex;align-items:center;gap:8px;height:28px}
+.freq-num{font-family:'JetBrains Mono',monospace;font-size:12px;width:24px;text-align:right;color:var(--muted);flex-shrink:0}
+.freq-bar-wrap{flex:1;height:20px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.freq-bar{height:100%;border-radius:4px;transition:width .6s ease}
+.freq-bar.hot{background:linear-gradient(90deg,#f59e0b,#f97316)}
+.freq-bar.warm{background:linear-gradient(90deg,#3b82f6,#6366f1)}
+.freq-bar.cold{background:linear-gradient(90deg,#334155,#475569)}
+.freq-count{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);width:28px;text-align:left;flex-shrink:0}
+.heatmap{display:grid;grid-template-columns:repeat(10,1fr);gap:3px}
+.heat-cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:600;cursor:pointer;transition:transform .15s}
+.heat-cell:hover{transform:scale(1.15)}
+.draw-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+.draw-row:last-child{border-bottom:none}
+.draw-date{font-size:11px;color:var(--muted);width:72px;flex-shrink:0}
+.draw-balls{display:flex;gap:6px;flex:1}
+.ball{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
+.test-result{display:flex;align-items:center;gap:12px;padding:12px;background:var(--surface2);border-radius:8px;margin-bottom:8px}
+.test-label{font-size:12px;color:var(--muted);flex:1}
+.test-value{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700}
+.pass{color:var(--accent3)}.fail{color:var(--red)}
+.gap-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.gap-item{background:var(--surface2);border-radius:8px;padding:10px;text-align:center}
+.gap-num{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700}
+.gap-label{font-size:10px;color:var(--muted);margin-top:2px}
+.panel{display:none;padding-bottom:24px}.panel.active{display:block}
+.model-card{background:var(--surface2);border-radius:10px;padding:14px;margin-bottom:10px}
+.model-name{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between}
+.model-metric{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)}
+.model-metric:last-child{border-bottom:none}
+.metric-label{color:var(--muted)}.metric-val{font-family:'JetBrains Mono',monospace;font-weight:600}
+.pred-nums{display:flex;gap:10px;justify-content:center;margin:16px 0;flex-wrap:wrap}
+.pred-ball{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;border:2px solid var(--accent);color:var(--accent);background:rgba(245,158,11,.08)}
+.disclaimer{font-size:11px;color:var(--muted);text-align:center;padding:8px 12px;background:rgba(245,158,11,.05);border-radius:8px;border:1px dashed var(--dim);margin-top:12px;line-height:1.6}
+.slider-group{margin-bottom:16px}
+.slider-label{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:8px}
+.slider-label span:first-child{color:var(--muted)}
+.slider-val{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent);font-size:16px}
+input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:var(--surface2);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;border:3px solid var(--bg);box-shadow:0 0 8px rgba(245,158,11,.4)}
+.result-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0}
+.result-box{background:var(--surface2);border-radius:10px;padding:14px;text-align:center;border:1px solid var(--border)}
+.result-big{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700}
+.result-sub{font-size:10px;color:var(--muted);margin-top:4px}
+.combo-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:12px}
+.combo-table th,.combo-table td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--border)}
+.combo-table th{color:var(--muted);font-weight:600;font-size:10px}
+.combo-table td{font-family:'JetBrains Mono',monospace}
+.highlight-row td{color:var(--accent);font-weight:700}
+.strategy-card{background:var(--surface2);border-radius:12px;padding:16px;margin-bottom:12px;border-left:3px solid var(--dim)}
+.strategy-card.best{border-left-color:var(--accent3)}.strategy-card.good{border-left-color:var(--accent)}.strategy-card.risky{border-left-color:var(--red)}
+.strategy-name{font-size:14px;font-weight:700;margin-bottom:4px}
+.strategy-desc{font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:10px}
+.strategy-stats{display:flex;gap:8px;flex-wrap:wrap}
+.strategy-stat{background:var(--bg);border-radius:6px;padding:8px 10px;text-align:center;flex:1;min-width:70px}
+.strategy-stat .val{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
+.strategy-stat .label{font-size:9px;color:var(--muted);margin-top:2px}
+.gauge-wrap{position:relative;width:100%;height:24px;background:var(--surface2);border-radius:12px;overflow:hidden;margin:8px 0}
+.gauge-fill{height:100%;border-radius:12px;transition:width .8s ease}
+.gauge-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+
+/* === ADD DRAW FORM === */
+.input-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.input-field{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;outline:none;transition:border-color .2s}
+.input-field:focus{border-color:var(--accent)}
+.input-field::placeholder{color:var(--dim)}
+.input-date{width:130px}
+.input-num{width:52px;text-align:center}
+.btn{padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all .2s;font-family:'Noto Sans TC',sans-serif}
+.btn-primary{background:var(--accent);color:var(--bg)}
+.btn-primary:hover{background:#fbbf24}
+.btn-primary:active{transform:scale(.97)}
+.btn-danger{background:transparent;border:1px solid var(--red);color:var(--red);padding:6px 12px;font-size:11px;border-radius:6px}
+.btn-danger:hover{background:rgba(239,68,68,.1)}
+.btn-secondary{background:var(--surface2);color:var(--muted);border:1px solid var(--border);padding:6px 12px;font-size:11px;border-radius:6px}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--accent3);color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.error{background:var(--red)}
+.manage-draw-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+.manage-draw-row:last-child{border-bottom:none}
+.manage-tag{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600}
+.tag-builtin{background:rgba(100,116,139,.15);color:var(--muted)}
+.tag-custom{background:rgba(245,158,11,.12);color:var(--accent)}
+.data-count{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px}
+
+/* Trend charts */
+.mini-chart{display:flex;align-items:flex-end;gap:2px;height:80px;margin:8px 0}
+.mini-bar{flex:1;border-radius:2px 2px 0 0;min-width:3px;transition:height .3s}
+.temp-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.temp-row:last-child{border-bottom:none}
+.temp-num{font-family:'JetBrains Mono',monospace;font-size:13px;width:28px;text-align:right;font-weight:700;flex-shrink:0}
+.temp-bar-wrap{flex:1;height:16px;background:var(--surface2);border-radius:3px;position:relative;overflow:hidden}
+.temp-bar{height:100%;border-radius:3px;position:absolute;top:0}
+.temp-val{font-family:'JetBrains Mono',monospace;font-size:10px;width:42px;text-align:right;flex-shrink:0}
+.timeline-wrap{display:grid;gap:1px;font-family:'JetBrains Mono',monospace;font-size:9px}
+.tl-row{display:flex;align-items:center;gap:0}
+.tl-label{width:28px;text-align:right;padding-right:4px;color:var(--muted);flex-shrink:0;font-size:10px}
+.tl-cell{width:14px;height:14px;border-radius:2px;flex-shrink:0}
+.tl-header{display:flex;align-items:center;gap:0;margin-bottom:2px}
+.tl-header-label{width:28px;flex-shrink:0}
+.tl-header-cell{width:14px;text-align:center;flex-shrink:0;color:var(--dim);font-size:8px}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--dim);border-radius:4px}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<div class="header">
+  <h1>今彩539 數據研究平台</h1>
+  <div class="sub" id="headerSub">載入中...</div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-panel="overview">總覽</div>
+  <div class="tab" data-panel="frequency">頻率</div>
+  <div class="tab" data-panel="serial">序列</div>
+  <div class="tab" data-panel="backtest">回測</div>
+  <div class="tab" data-panel="coverage">覆蓋</div>
+  <div class="tab" data-panel="predict">預測</div>
+  <div class="tab" data-panel="trends" style="color:var(--purple)">趨勢</div>
+  <div class="tab" data-panel="manage" style="color:var(--accent3)">＋管理</div>
+</div>
+
+<div class="panel active" id="overview">
+  <div class="stats-row">
+    <div class="stat-box"><div class="stat-val" id="totalDraws">0</div><div class="stat-label">總期數</div></div>
+    <div class="stat-box"><div class="stat-val" id="hottestNum">-</div><div class="stat-label">最熱號碼</div></div>
+    <div class="stat-box"><div class="stat-val" id="coldestNum">-</div><div class="stat-label">最冷號碼</div></div>
+  </div>
+  <div class="card"><div class="card-title"><span class="dot"></span>近期開獎</div><div id="recentDraws"></div></div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent2)"></span>號碼熱力圖</div><div class="heatmap" id="heatmap"></div></div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent3)"></span>基礎統計</div><div class="gap-grid" id="basicStats"></div></div>
+</div>
+
+<div class="panel" id="frequency">
+  <div class="card"><div class="card-title"><span class="dot"></span>出現次數（降序）</div><div id="freqBars"></div></div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent2)"></span>卡方均勻性檢定</div><div id="chiTest"></div></div>
+</div>
+
+<div class="panel" id="serial">
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent3)"></span>隨機性檢定</div><div id="serialTests"></div></div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent2)"></span>相鄰期重疊</div><div id="overlapDist"></div></div>
+  <div class="card"><div class="card-title"><span class="dot"></span>間隔期數</div><div id="gapAnalysis"></div></div>
+</div>
+
+<div class="panel" id="backtest">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--red)"></span>模型回測</div>
+    <div class="model-card" id="model1"></div>
+    <div class="model-card" id="model2"></div>
+    <div class="model-card" id="model3"></div>
+  </div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent3)"></span>命中分布</div><div id="hitDistribution"></div></div>
+</div>
+
+<div class="panel" id="coverage">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--purple)"></span>組合覆蓋計算器</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.6">拖動滑桿設定候選號碼池與目標命中數。</div>
+    <div class="slider-group"><div class="slider-label"><span>候選號碼池</span><span class="slider-val" id="poolVal">12</span></div><input type="range" id="poolSlider" min="6" max="25" value="12"></div>
+    <div class="slider-group"><div class="slider-label"><span>目標命中數</span><span class="slider-val" id="targetVal">3</span></div><input type="range" id="targetSlider" min="2" max="5" value="3"></div>
+    <div class="result-grid" id="coverageResults"></div>
+    <div id="coverageTable"></div>
+  </div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent3)"></span>策略比較</div><div id="strategyComparison"></div></div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--accent2)"></span>成本效益</div><div id="roiAnalysis"></div></div>
+  <div class="card"><div class="card-title"><span class="dot" style="background:var(--red)"></span>關鍵結論</div><div id="keyConclusion"></div></div>
+</div>
+
+<div class="panel" id="predict">
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>模型研究產出</div>
+    <div id="predSection"></div>
+    <div class="disclaimer">⚠️ 純粹基於統計模型研究產出<br>彩券開獎為獨立隨機事件，歷史數據不影響未來結果</div>
+  </div>
+</div>
+
+<!-- TRENDS PANEL -->
+<div class="panel" id="trends">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--purple)"></span>近N期號碼溫度變化</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">觀察每個號碼在「近10期」vs「近30期」的出現頻率差異。正值=升溫中，負值=降溫中。</div>
+    <div id="tempShift"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent)"></span>奇偶比走勢（滑動10期窗口）</div>
+    <div id="oddEvenTrend"></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center">虛線=理論均值(50%) · 觀察是否出現持續偏態後的回歸</div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span>大小比走勢（滑動10期窗口）</div>
+    <div id="bigSmallTrend"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent3)"></span>相鄰期重疊數走勢</div>
+    <div id="overlapTrend"></div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center">觀察連號集中出現的時間點</div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--red)"></span>號碼出現時間軸（近30期）</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">每列=一個號碼，每格=一期。亮格=該期開出。快速辨識連莊、缺席、回歸。</div>
+    <div id="timelineGrid" style="overflow-x:auto"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent)"></span>模型預測追蹤紀錄</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">每期回測模型預測的前10號 vs 實際開出，統計命中數走勢。</div>
+    <div id="predTrack"></div>
+  </div>
+</div>
+
+<!-- MANAGE PANEL -->
+<div class="panel" id="manage">
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent3)"></span>新增開獎號碼</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">輸入日期與5個號碼，新增後所有分析即時更新。資料會自動儲存。</div>
+    <div class="input-row">
+      <input type="date" id="inputDate" class="input-field input-date" value="">
+    </div>
+    <div class="input-row">
+      <input type="number" id="n1" class="input-field input-num" placeholder="01" min="1" max="39">
+      <input type="number" id="n2" class="input-field input-num" placeholder="02" min="1" max="39">
+      <input type="number" id="n3" class="input-field input-num" placeholder="03" min="1" max="39">
+      <input type="number" id="n4" class="input-field input-num" placeholder="04" min="1" max="39">
+      <input type="number" id="n5" class="input-field input-num" placeholder="05" min="1" max="39">
+    </div>
+    <button class="btn btn-primary" id="addBtn" onclick="addDraw()">新增開獎</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span>已儲存的自訂資料</div>
+    <div class="data-count" id="customCount"></div>
+    <div id="customDrawsList" style="margin-top:12px"></div>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn-secondary" onclick="exportData()">匯出 JSON</button>
+      <button class="btn-danger" onclick="clearCustom()">清除自訂資料</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>資料總覽</div>
+    <div id="dataOverview"></div>
+  </div>
+</div>
+
+<script>
+// ===== BUILT-IN DATA =====
+const BUILTIN=[[7,21,1,6,11,22,34],[7,22,19,21,27,32,39],[7,23,16,18,23,36,39],[7,24,2,6,9,29,32],[7,25,5,7,10,26,30],[7,26,14,15,18,23,29],[7,28,4,16,22,23,30],[7,29,1,6,10,13,27],[7,30,17,22,24,30,32],[7,31,11,12,14,34,36],[8,1,2,13,18,33,35],[8,2,3,14,22,25,31],[8,4,3,21,23,25,26],[8,5,13,20,21,28,37],[8,6,6,10,24,28,38],[8,7,10,20,28,30,37],[8,8,11,25,27,30,34],[8,9,1,9,27,29,30],[8,11,1,14,22,26,28],[8,12,1,9,17,25,30],[8,13,11,23,26,32,34],[8,14,10,12,14,31,35],[8,15,1,5,16,18,26],[8,16,15,18,22,24,31],[8,18,9,12,18,27,29],[8,19,6,7,18,31,35],[8,20,15,18,29,31,39],[8,21,16,27,28,29,33],[8,22,6,7,21,37,38],[8,23,4,5,8,27,39],[8,25,6,12,15,23,26],[8,26,2,5,24,38,39],[8,27,3,5,28,30,32],[8,28,5,7,21,23,29],[8,29,7,20,21,30,38],[8,30,4,5,7,13,14],[9,1,21,24,28,29,35],[9,2,5,8,10,23,25],[9,3,14,15,20,21,23],[9,4,6,7,24,27,34],[9,5,7,9,29,32,38],[9,6,8,14,25,28,31],[9,8,7,11,20,28,38],[9,9,8,20,23,25,26],[9,10,12,14,16,28,39],[9,11,6,18,26,28,36],[9,12,9,12,16,26,34],[9,13,2,25,32,35,36],[9,15,7,9,10,12,28],[9,16,2,9,19,21,33],[9,17,4,6,7,12,38],[9,18,5,12,14,23,33],[9,19,2,11,22,24,31],[9,20,5,8,11,13,22],[9,22,7,9,12,14,33],[9,23,6,19,20,33,37],[9,24,4,22,23,35,39],[9,25,2,10,13,28,32],[9,26,3,7,14,25,34],[9,27,3,11,13,28,37],[10,1,3,5,12,22,27],[10,2,10,19,25,36,39],[10,3,10,16,19,21,28],[10,4,3,4,10,18,39],[10,5,4,5,9,18,24],[10,6,3,5,6,12,13],[10,7,1,16,20,28,34],[10,8,3,9,26,38,39],[10,9,4,12,15,17,29],[10,10,5,14,31,34,36],[10,11,4,9,19,22,34],[10,13,8,13,14,22,36],[10,14,4,5,9,18,24],[10,15,4,14,25,30,39],[10,17,1,21,32,34,17],[10,20,6,13,22,23,27],[10,21,13,22,30,37,38],[10,22,3,4,20,25,28],[10,23,8,15,27,37,38],[10,24,8,11,13,37,38],[10,25,3,4,11,21,34],[10,27,3,20,26,31,37],[10,28,18,20,25,29,31],[10,29,26,32,33,36,39],[10,30,5,27,28,31,37],[10,31,11,18,26,31,33],[11,1,8,12,19,27,28],[11,3,24,25,34,36,37],[11,4,1,7,12,29,39],[11,5,11,14,15,27,39],[11,6,7,24,28,31,32],[11,7,22,27,30,32,37],[11,8,7,8,9,26,34],[11,10,7,14,15,17,30],[11,11,5,19,31,34,39],[11,12,1,4,9,14,22],[11,13,13,18,20,23,36],[11,14,2,11,15,37,38],[11,15,12,20,25,28,31],[11,17,4,7,16,26,29],[11,18,14,24,31,36,37],[11,19,3,11,20,28,31],[11,20,1,5,33,36,38],[11,21,5,10,17,28,35],[11,22,10,13,32,33,37],[11,24,2,4,5,17,31],[11,25,9,30,36,38,39],[11,26,7,13,26,28,34],[11,27,4,7,19,22,25],[11,28,8,13,14,22,28],[11,29,5,8,13,14,22],[12,1,2,3,4,20,24],[12,2,2,5,8,13,29],[12,3,5,9,14,33,35],[12,4,1,7,20,25,37],[12,5,2,3,16,17,29],[12,6,6,22,23,24,32]];
+const BUILTIN2=[[1,1,15,16,18,29,36],[1,2,17,18,25,36,39],[1,3,22,23,31,32,38],[1,5,10,16,18,34,39],[1,6,1,2,6,11,33],[1,7,5,10,14,15,28],[1,8,3,8,10,21,30],[1,9,1,12,14,22,34],[1,10,11,25,26,34,38],[1,12,3,13,18,24,30],[1,13,6,16,17,19,31],[1,14,1,2,16,33,35],[1,15,1,2,3,19,36],[1,16,18,19,22,27,29],[1,19,12,16,23,24,29],[1,20,16,19,23,25,34],[1,21,4,15,23,27,38],[1,22,3,6,11,30,34],[1,23,3,11,12,21,31],[1,24,6,7,15,35,37],[1,25,14,18,28,36,39],[1,26,1,10,20,27,36],[1,27,1,15,19,28,38],[2,2,6,8,31,37,38],[2,3,3,5,11,15,23],[2,4,8,17,22,27,28],[2,5,8,9,13,32,35],[2,6,1,6,29,32,34],[2,7,3,8,22,27,32],[2,9,16,21,25,31,35],[2,10,10,11,17,22,36],[2,11,11,15,18,29,33],[2,12,1,12,21,35,37],[2,13,4,28,31,33,34],[2,14,1,3,13,31,36],[3,1,2,8,15,29,31],[3,2,3,12,20,21,27],[3,3,2,19,21,32,35],[3,4,4,8,12,16,17],[3,5,1,4,8,12,36],[3,6,19,24,29,32,34],[3,7,15,17,18,34,36],[3,9,7,12,15,32,38],[3,10,11,12,14,17,32],[3,11,5,15,26,37,38],[3,12,4,5,7,23,35],[3,13,2,5,11,12,15],[3,14,8,10,18,20,34],[3,16,17,19,21,29,34],[3,17,11,13,19,22,27],[3,18,21,22,31,32,35],[3,19,5,23,25,30,37],[3,20,3,11,15,33,39],[3,21,7,14,15,19,22],[3,23,7,12,24,29,35],[3,24,10,20,28,29,36],[3,25,3,13,31,33,36],[3,26,14,17,20,24,37],[3,27,8,18,24,34,35],[3,28,6,9,11,16,17],[3,30,6,8,20,22,32],[3,31,9,16,23,35,39]];
+const BUILTIN_RECENT=[{date:'2026-04-03',nums:[6,8,9,25,35]},{date:'2026-04-04',nums:[4,17,25,31,36]},{date:'2026-04-06',nums:[7,11,17,31,34]}];
+
+// ============================================================
+// ★★★ 新增開獎號碼請加在這裡 ★★★
+// 格式：{date:'YYYY-MM-DD', nums:[號1,號2,號3,號4,號5]}
+// 每次開獎後，複製最後一行，改日期和號碼，存檔即可
+// ============================================================
+const NEW_DRAWS = [
+  // {date:'2026-04-07', nums:[3,15,22,28,37]},
+  // {date:'2026-04-09', nums:[1,12,19,30,35]},
+];
+// ============================================================
+
+// ===== FIREBASE =====
+const firebaseConfig = {
+  apiKey: "AIzaSyBPvJUa58xCP04Qmg5xyvBphupBd7WMtwI",
+  authDomain: "lottery539539.firebaseapp.com",
+  projectId: "lottery539539",
+  storageBucket: "lottery539539.firebasestorage.app",
+  messagingSenderId: "963669296420",
+  appId: "1:963669296420:web:445397f86a25496fe9dfb1"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const COLLECTION = 'draws';
+
+let _customCache = [];
+
+async function loadCustomDraws() {
+  try {
+    const snapshot = await db.collection(COLLECTION).orderBy('date').get();
+    _customCache = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch(e) {
+    console.warn('Firebase load error:', e);
+    _customCache = [];
+  }
+  return _customCache;
+}
+
+async function saveOneDraw(draw) {
+  try {
+    const docRef = await db.collection(COLLECTION).add(draw);
+    draw.id = docRef.id;
+    _customCache.push(draw);
+  } catch(e) {
+    console.error('Firebase save error:', e);
+    // Fallback to memory
+    _customCache.push(draw);
+  }
+}
+
+async function deleteOneDraw(id) {
+  try {
+    await db.collection(COLLECTION).doc(id).delete();
+    _customCache = _customCache.filter(d => d.id !== id);
+  } catch(e) {
+    console.error('Firebase delete error:', e);
+  }
+}
+
+async function clearAllDraws() {
+  try {
+    const snapshot = await db.collection(COLLECTION).get();
+    const batch = db.batch();
+    snapshot.docs.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+    _customCache = [];
+  } catch(e) {
+    console.error('Firebase clear error:', e);
+  }
+}
+
+// ===== BUILD ALL DRAWS =====
+function buildAllDraws() {
+  const all = [];
+  BUILTIN.forEach(r => { if(r.length>=7) all.push({nums:r.slice(2,7).sort((a,b)=>a-b),type:'builtin'}); });
+  BUILTIN2.forEach(r => { if(r.length>=7) all.push({nums:r.slice(2,7).sort((a,b)=>a-b),type:'builtin'}); });
+  BUILTIN_RECENT.forEach(d => all.push({date:d.date,nums:[...d.nums].sort((a,b)=>a-b),type:'builtin'}));
+  NEW_DRAWS.forEach(d => all.push({date:d.date,nums:[...d.nums].sort((a,b)=>a-b),type:'builtin'}));
+  _customCache.forEach(d => all.push({date:d.date,nums:[...d.nums].sort((a,b)=>a-b),type:'custom'}));
+  return all;
+}
+
+// ===== TOAST =====
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2000);
+}
+
+// ===== ADD DRAW =====
+async function addDraw() {
+  const date = document.getElementById('inputDate').value;
+  const nums = [1,2,3,4,5].map(i => parseInt(document.getElementById('n'+i).value));
+  
+  if (!date) { toast('請輸入日期', true); return; }
+  if (nums.some(n => isNaN(n) || n < 1 || n > 39)) { toast('號碼須為 1-39', true); return; }
+  if (new Set(nums).size !== 5) { toast('5個號碼不可重複', true); return; }
+  
+  document.getElementById('addBtn').textContent = '儲存中...';
+  await saveOneDraw({ date, nums: nums.sort((a,b)=>a-b) });
+  document.getElementById('addBtn').textContent = '新增開獎';
+  
+  [1,2,3,4,5].forEach(i => document.getElementById('n'+i).value = '');
+  
+  toast(`✓ 已新增 ${date} 開獎號碼（已同步雲端）`);
+  renderAll();
+}
+
+// ===== DELETE CUSTOM DRAW =====
+async function deleteCustomDraw(id) {
+  await deleteOneDraw(id);
+  toast('已刪除（已同步雲端）');
+  renderAll();
+}
+
+async function clearCustom() {
+  if (_customCache.length === 0) { toast('沒有自訂資料', true); return; }
+  await clearAllDraws();
+  toast('已清除所有自訂資料（已同步雲端）');
+  renderAll();
+}
+
+function exportData() {
+  if (_customCache.length === 0) { toast('沒有資料可匯出', true); return; }
+  const exportArr = _customCache.map(d => ({date:d.date, nums:d.nums}));
+  const blob = new Blob([JSON.stringify(exportArr, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '539_draws.json';
+  a.click();
+  toast('✓ 已匯出');
+}
+
+// ===== ANALYSIS FUNCTIONS =====
+function getFreq(draws){const f={};for(let i=1;i<=39;i++)f[i]=0;draws.forEach(d=>d.nums.forEach(n=>{if(n>=1&&n<=39)f[n]++}));return f}
+function chiTestFn(f,len){const t=len*5,e=t/39;let c=0;for(let i=1;i<=39;i++)c+=Math.pow(f[i]-e,2)/e;return{chiSq:c.toFixed(2),df:38,critical:53.38,pass:c<53.38}}
+function getOverlaps(draws){const o=[];for(let i=1;i<draws.length;i++){const p=new Set(draws[i-1].nums);o.push(draws[i].nums.filter(n=>p.has(n)).length)}return o}
+function runsTestFn(draws){const s=[];draws.forEach(d=>d.nums.forEach(n=>s.push(n%2===0?'E':'O')));let r=1;for(let i=1;i<s.length;i++)if(s[i]!==s[i-1])r++;const nE=s.filter(x=>x==='E').length,nO=s.filter(x=>x==='O').length,N=s.length;if(N<2)return{runs:0,expectedRuns:'0',z:'0',pass:true};const er=(2*nE*nO)/N+1,v=(2*nE*nO*(2*nE*nO-N))/(N*N*(N-1)),z=(r-er)/Math.sqrt(Math.abs(v)||1);return{runs:r,expectedRuns:er.toFixed(1),z:z.toFixed(2),pass:Math.abs(z)<1.96}}
+function gapAnalFn(draws){const g={},ls={};for(let i=1;i<=39;i++){g[i]=[];ls[i]=-1}draws.forEach((d,idx)=>d.nums.forEach(n=>{if(ls[n]>=0)g[n].push(idx-ls[n]);ls[n]=idx}));const cg={},ag={};for(let i=1;i<=39;i++){cg[i]=draws.length-1-ls[i];ag[i]=g[i].length>0?g[i].reduce((a,b)=>a+b,0)/g[i].length:0}return{currentGap:cg,avgGap:ag}}
+function backtestFn(draws){if(draws.length<10)return null;const ts=Math.min(30,Math.floor(draws.length*.15)),te=draws.length-ts,R={freq:[],recent:[],combo:[]};for(let i=te;i<draws.length;i++){const td=draws.slice(0,i),ac=new Set(draws[i].nums);const tf={};for(let n=1;n<=39;n++)tf[n]=0;td.forEach(d=>d.nums.forEach(n=>tf[n]++));R.freq.push(Object.entries(tf).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>+e[0]).filter(n=>ac.has(n)).length);const rf={};for(let n=1;n<=39;n++)rf[n]=0;td.slice(-20).forEach(d=>d.nums.forEach(n=>rf[n]++));R.recent.push(Object.entries(rf).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>+e[0]).filter(n=>ac.has(n)).length);const ls={};for(let n=1;n<=39;n++)ls[n]=-999;td.forEach((d,idx)=>d.nums.forEach(n=>ls[n]=idx));R.combo.push(Object.entries(ls).sort((a,b)=>a[1]-b[1]).slice(0,10).map(e=>+e[0]).filter(n=>ac.has(n)).length)}function sm(a){const av=(a.reduce((x,y)=>x+y,0)/a.length).toFixed(2);return{avg:av,max:Math.max(...a),hitRate:((a.filter(h=>h>=2).length/a.length)*100).toFixed(1),baseline:(10*5/39).toFixed(2),hits:a}}return{freq:{...sm(R.freq),name:'頻率模型',desc:'歷史高頻前10'},recent:{...sm(R.recent),name:'近期加權',desc:'近20期高頻前10'},combo:{...sm(R.combo),name:'間隔回補',desc:'最久未出前10'}}}
+function genPredFn(draws){
+  const len = draws.length;
+  // Dimension 1: Recent frequency (last 20 draws) - most sensitive to new data
+  const recent20 = draws.slice(-Math.min(20, len));
+  const rf = {};
+  for(let i=1;i<=39;i++) rf[i]=0;
+  recent20.forEach(d => d.nums.forEach(n => rf[n]++));
+  const maxRF = Math.max(...Object.values(rf)) || 1;
+
+  // Dimension 2: Medium-term frequency (last 50 draws)
+  const recent50 = draws.slice(-Math.min(50, len));
+  const mf = {};
+  for(let i=1;i<=39;i++) mf[i]=0;
+  recent50.forEach(d => d.nums.forEach(n => mf[n]++));
+  const maxMF = Math.max(...Object.values(mf)) || 1;
+
+  // Dimension 3: Gap overdue ratio
+  const {currentGap:cg, avgGap:ag} = gapAnalFn(draws);
+
+  // Dimension 4: Last draw exclusion - numbers just drawn are less likely to repeat
+  const lastDraw = new Set(draws.length > 0 ? draws[draws.length-1].nums : []);
+
+  const sc = {};
+  for(let i=1;i<=39;i++){
+    const recentScore = rf[i] / maxRF;                         // 0~1
+    const mediumScore = mf[i] / maxMF;                         // 0~1
+    const gapRatio = ag[i] > 0 ? cg[i] / ag[i] : 0;
+    const gapScore = Math.min(gapRatio / 3, 1);                // 0~1
+    const lastPenalty = lastDraw.has(i) ? -0.15 : 0;           // penalize just-drawn
+
+    // Weighted: recent 35%, medium 20%, gap 35%, last penalty 10%
+    sc[i] = recentScore * 0.35 + mediumScore * 0.20 + gapScore * 0.35 + lastPenalty + 0.10;
+  }
+  const so = Object.entries(sc).sort((a,b) => b[1] - a[1]);
+  return {
+    primary: so.slice(0,5).map(e=>+e[0]).sort((a,b)=>a-b),
+    secondary: so.slice(5,10).map(e=>+e[0]).sort((a,b)=>a-b),
+    scores: sc
+  };
+}
+
+// Combinatorics
+function Cn(n,r){if(r>n||r<0)return 0;if(r===0||r===n)return 1;let x=1;for(let i=0;i<r;i++)x=x*(n-i)/(i+1);return Math.round(x)}
+function hyper(k,K,n,N){return Cn(K,k)*Cn(N-K,n-k)/Cn(N,n)}
+function covProb(pool,target){let p=0;for(let k=target;k<=Math.min(5,pool);k++)p+=hyper(k,pool,5,39);return p}
+function minBets(pool,target){const fw=Cn(pool,5);let ab;if(target===2)ab=Math.max(1,Math.ceil(fw/Cn(Math.max(pool-2,3),3)));else if(target===3)ab=Math.max(1,Math.ceil(fw/Cn(Math.max(pool-3,2),2)));else if(target===4)ab=Math.max(1,Math.ceil(fw/Math.max(pool-4+1,1)));else ab=fw;return{fw,ab:Math.min(ab,fw)}}
+function calcCov(pool,target){const p=covProb(pool,target),b=minBets(pool,target);return{pool,target,prob:p,probPct:(p*100).toFixed(2),fw:b.fw,ab:b.ab,abCost:b.ab*50}}
+
+// ===== MASTER RENDER =====
+function renderAll() {
+  try {
+  const allDraws = buildAllDraws();
+  const customDraws = _customCache;
+  const builtinCount = allDraws.filter(d=>d.type==='builtin').length;
+  
+  document.getElementById('headerSub').textContent = `${allDraws.length} 期資料 · 內建 ${builtinCount} · 自訂 ${customDraws.length}`;
+  
+  // Compute
+  const freq=getFreq(allDraws), chi=chiTestFn(freq,allDraws.length), overlaps=getOverlaps(allDraws);
+  const runs=runsTestFn(allDraws), {currentGap,avgGap}=gapAnalFn(allDraws);
+  const models=backtestFn(allDraws), pred=genPredFn(allDraws);
+  const maxF=Math.max(...Object.values(freq)), minF=Math.min(...Object.values(freq));
+  
+  // Overview
+  document.getElementById('totalDraws').textContent=allDraws.length;
+  const sf=Object.entries(freq).sort((a,b)=>b[1]-a[1]);
+  document.getElementById('hottestNum').textContent=sf[0][0];
+  document.getElementById('coldestNum').textContent=sf[sf.length-1][0];
+  
+  // Recent: show last 5 draws that have dates
+  const dated = allDraws.filter(d=>d.date).slice(-5).reverse();
+  document.getElementById('recentDraws').innerHTML=dated.map(d=>`<div class="draw-row"><div class="draw-date">${d.date.slice(5)}</div><div class="draw-balls">${d.nums.map(n=>`<div class="ball">${String(n).padStart(2,'0')}</div>`).join('')}</div></div>`).join('');
+  
+  // Heatmap
+  let hH='';for(let i=1;i<=39;i++){const r=maxF>minF?(freq[i]-minF)/(maxF-minF):0.5;let R,G,B;if(r>.5){const t=(r-.5)*2;R=Math.round(245*t+59*(1-t));G=Math.round(158*t+130*(1-t));B=Math.round(11*t+246*(1-t))}else{const t=r*2;R=Math.round(59*t+51*(1-t));G=Math.round(130*t+65*(1-t));B=Math.round(246*t+85*(1-t))}hH+=`<div class="heat-cell" style="background:rgba(${R},${G},${B},.85);color:#fff" title="${i}: ${freq[i]}次">${i}</div>`}
+  hH+=`<div class="heat-cell" style="background:var(--surface2);color:var(--dim)">-</div>`;
+  document.getElementById('heatmap').innerHTML=hH;
+  
+  const aN=allDraws.flatMap(d=>d.nums),oC=aN.filter(n=>n%2===1).length,eC=aN.filter(n=>n%2===0).length,sC=aN.filter(n=>n<=19).length,bC=aN.filter(n=>n>=20).length;
+  document.getElementById('basicStats').innerHTML=`<div class="gap-item"><div class="gap-num" style="color:var(--accent)">${(oC/(oC+eC)*100).toFixed(1)}%</div><div class="gap-label">奇數</div></div><div class="gap-item"><div class="gap-num" style="color:var(--accent2)">${(eC/(oC+eC)*100).toFixed(1)}%</div><div class="gap-label">偶數</div></div><div class="gap-item"><div class="gap-num" style="color:var(--accent3)">${(sC/(sC+bC)*100).toFixed(1)}%</div><div class="gap-label">小(1-19)</div></div><div class="gap-item"><div class="gap-num" style="color:var(--red)">${(bC/(sC+bC)*100).toFixed(1)}%</div><div class="gap-label">大(20-39)</div></div>`;
+  
+  // Frequency
+  const sorted=Object.entries(freq).sort((a,b)=>b[1]-a[1]),tt=Math.floor(39/3);
+  let fH='';sorted.forEach(([n,c],i)=>{const p=(c/maxF*100).toFixed(0),cl=i<tt?'hot':i<tt*2?'warm':'cold';fH+=`<div class="freq-row"><div class="freq-num">${n}</div><div class="freq-bar-wrap"><div class="freq-bar ${cl}" style="width:${p}%"></div></div><div class="freq-count">${c}</div></div>`});
+  document.getElementById('freqBars').innerHTML=fH;
+  document.getElementById('chiTest').innerHTML=`<div class="test-result"><div class="test-label">χ²</div><div class="test-value mono">${chi.chiSq}</div></div><div class="test-result"><div class="test-label">臨界值 (α=0.05)</div><div class="test-value mono">${chi.critical}</div></div><div class="test-result"><div class="test-label">結論</div><div class="test-value ${chi.pass?'pass':'fail'}">${chi.pass?'✓ 無法拒絕均勻':'✗ 偏離均勻'}</div></div>`;
+  
+  // Serial
+  document.getElementById('serialTests').innerHTML=`<div class="test-result"><div class="test-label">遊程檢定</div><div class="test-value ${runs.pass?'pass':'fail'}">${runs.pass?'✓ 通過':'✗ 未通過'}</div></div><div class="test-result"><div class="test-label">Z值</div><div class="test-value mono">${runs.z}</div></div>`;
+  const oD=[0,0,0,0,0,0];overlaps.forEach(o=>oD[o]++);const mO=Math.max(...oD)||1;
+  let oH='<div style="display:flex;gap:8px;align-items:flex-end;height:120px;margin:12px 0">';
+  oD.forEach((c,i)=>{const h=c/mO*100;oH+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:10px;color:var(--muted)">${c}</div><div style="width:100%;height:${h}px;background:linear-gradient(180deg,var(--accent),var(--accent2));border-radius:4px 4px 0 0;min-height:2px"></div><div class="mono" style="font-size:11px">${i}</div></div>`});
+  oH+='</div><div style="text-align:center;font-size:10px;color:var(--muted)">相鄰期重疊數</div>';
+  document.getElementById('overlapDist').innerHTML=oH;
+  const gE=Object.entries(currentGap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  let gH='<div class="gap-grid">';gE.forEach(([n,g])=>{const a=avgGap[n]>0?avgGap[n].toFixed(1):'N/A',r=avgGap[n]>0?(g/avgGap[n]).toFixed(1):'N/A',co=r>1.5?'var(--red)':r>1?'var(--accent)':'var(--accent3)';gH+=`<div class="gap-item"><div class="gap-num" style="color:${co}">${n}</div><div class="gap-label">已${g}期 · 均${a}期</div></div>`});
+  gH+='</div>';document.getElementById('gapAnalysis').innerHTML=gH;
+  
+  // Backtest
+  if(models){
+    const rM = (id,m) => {document.getElementById(id).innerHTML=`<div class="model-name"><span>${m.name}</span><span class="mono" style="color:var(--accent);font-size:11px">${m.desc}</span></div><div class="model-metric"><span class="metric-label">平均命中/5</span><span class="metric-val">${m.avg}</span></div><div class="model-metric"><span class="metric-label">最高</span><span class="metric-val">${m.max}</span></div><div class="model-metric"><span class="metric-label">命中≥2率</span><span class="metric-val">${m.hitRate}%</span></div>`};
+    rM('model1',models.freq);rM('model2',models.recent);rM('model3',models.combo);
+    const aH=[...models.freq.hits,...models.recent.hits,...models.combo.hits],hD=[0,0,0,0,0,0];aH.forEach(h=>hD[h]++);const mH=Math.max(...hD)||1;
+    let hHTML='<div style="display:flex;gap:6px;align-items:flex-end;height:100px">';hD.forEach((c,i)=>{const h=c/mH*100,co=i>=3?'var(--accent3)':i>=2?'var(--accent)':'var(--dim)';hHTML+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px"><div class="mono" style="font-size:10px;color:var(--muted)">${c}</div><div style="width:100%;height:${h}px;background:${co};border-radius:4px 4px 0 0;min-height:2px"></div><div class="mono" style="font-size:11px">${i}中</div></div>`});
+    hHTML+='</div>';document.getElementById('hitDistribution').innerHTML=hHTML;
+  }
+  
+  // Prediction
+  document.getElementById('predSection').innerHTML=`<div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:4px">複合模型（近期頻率×間隔×中期趨勢）</div><div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px">基於 ${allDraws.length} 期資料 · 最後更新：${dated.length>0?dated[0].date:'N/A'}</div><div class="pred-nums">${pred.primary.map(n=>`<div class="pred-ball">${String(n).padStart(2,'0')}</div>`).join('')}</div><div style="text-align:center;font-size:12px;color:var(--dim);margin:12px 0 4px">備選</div><div class="pred-nums">${pred.secondary.map(n=>`<div class="pred-ball" style="border-color:var(--accent2);color:var(--accent2);background:rgba(59,130,246,.06)">${String(n).padStart(2,'0')}</div>`).join('')}</div>`;
+  
+  // Coverage
+  renderCov();
+  renderStrats();
+  renderROI();
+  
+  // Key conclusion
+  document.getElementById('keyConclusion').innerHTML=`<div style="line-height:1.8;font-size:12px"><div style="margin-bottom:10px"><span style="color:var(--accent);font-weight:700">▎ 5中2</span><br><span style="color:var(--muted)">10號池 → ~${(covProb(10,2)*100).toFixed(0)}%，$${(minBets(10,2).ab*50).toLocaleString()}/期</span></div><div style="margin-bottom:10px"><span style="color:var(--accent3);font-weight:700">▎ 5中3</span><br><span style="color:var(--muted)">15號池 → ~${(covProb(15,3)*100).toFixed(0)}%，$${(minBets(15,3).ab*50).toLocaleString()}/期</span></div><div><span style="color:var(--accent2);font-weight:700">▎ 建議</span><br><span style="color:var(--muted)">10-12號池+精簡輪盤追蹤100期驗證模型。</span></div></div>`;
+  
+  // Trends
+  try { renderTrends(allDraws); } catch(e) { console.warn('Trends render error:', e); }
+  
+  // Manage panel
+  document.getElementById('customCount').textContent=`已儲存 ${customDraws.length} 筆雲端資料`;
+  let clHTML='';
+  customDraws.slice().reverse().forEach((d)=>{
+    clHTML+=`<div class="manage-draw-row"><div class="draw-date">${d.date}</div><div class="draw-balls">${d.nums.map(n=>`<div class="ball">${String(n).padStart(2,'0')}</div>`).join('')}</div><button class="btn-danger" onclick="deleteCustomDraw('${d.id}')">刪除</button></div>`;
+  });
+  if(customDraws.length===0) clHTML='<div style="font-size:12px;color:var(--dim);text-align:center;padding:20px">尚無自訂資料</div>';
+  document.getElementById('customDrawsList').innerHTML=clHTML;
+  document.getElementById('dataOverview').innerHTML=`<div style="font-size:12px;color:var(--muted);line-height:1.8"><div>內建資料：<span class="mono" style="color:var(--text)">${builtinCount}</span> 期</div><div>雲端資料：<span class="mono" style="color:var(--accent)">${customDraws.length}</span> 期</div><div>合計：<span class="mono" style="color:var(--accent3)">${allDraws.length}</span> 期</div></div>`;
+  
+  } catch(err) { console.error('renderAll error:', err); }
+}
+
+function renderCov(){
+  const pool=+document.getElementById('poolSlider').value,target=+document.getElementById('targetSlider').value;
+  document.getElementById('poolVal').textContent=pool;
+  document.getElementById('targetVal').textContent=target;
+  const cv=calcCov(pool,target);
+  document.getElementById('coverageResults').innerHTML=`<div class="result-box"><div class="result-big" style="color:var(--accent)">${cv.probPct}%</div><div class="result-sub">單注中≥${target}機率</div></div><div class="result-box"><div class="result-big" style="color:var(--accent2)">${cv.fw}</div><div class="result-sub">全覆蓋注</div></div><div class="result-box"><div class="result-big" style="color:var(--accent3)">${cv.ab}</div><div class="result-sub">精簡注</div></div><div class="result-box"><div class="result-big" style="color:var(--purple)">$${cv.abCost.toLocaleString()}</div><div class="result-sub">成本/期</div></div>`;
+  let tH=`<table class="combo-table"><tr><th>池</th><th>中${target}率</th><th>全覆蓋</th><th>精簡</th><th>成本</th></tr>`;
+  for(let p=7;p<=20;p++){const c=calcCov(p,target);tH+=`<tr${p===pool?' class="highlight-row"':''}><td>${p}</td><td>${c.probPct}%</td><td>${c.fw}</td><td>${c.ab}</td><td>$${c.abCost.toLocaleString()}</td></tr>`}
+  tH+='</table>';document.getElementById('coverageTable').innerHTML=tH;
+}
+
+function renderStrats(){
+  const S=[
+    {name:'A：單注',cls:'risky',desc:'1注/期',bets:1,pool:5},
+    {name:'B：小池10號',cls:'good',desc:'精簡輪盤',bets:minBets(10,2).ab,pool:10},
+    {name:'C：中池15號',cls:'best',desc:'性價比甜蜜點',bets:minBets(15,3).ab,pool:15},
+    {name:'D：大池20號',cls:'risky',desc:'全覆蓋',bets:Cn(20,5),pool:20},
+  ];
+  document.getElementById('strategyComparison').innerHTML=S.map(s=>`<div class="strategy-card ${s.cls}"><div class="strategy-name">${s.name}</div><div class="strategy-desc">${s.desc}</div><div class="strategy-stats"><div class="strategy-stat"><div class="val" style="color:var(--accent)">${s.bets}</div><div class="label">注</div></div><div class="strategy-stat"><div class="val" style="color:var(--accent2)">${(covProb(s.pool,2)*100).toFixed(1)}%</div><div class="label">中2</div></div><div class="strategy-stat"><div class="val" style="color:var(--accent3)">${(covProb(s.pool,3)*100).toFixed(1)}%</div><div class="label">中3</div></div><div class="strategy-stat"><div class="val" style="color:var(--purple)">$${(s.bets*50).toLocaleString()}</div><div class="label">成本</div></div></div></div>`).join('');
+}
+
+function renderROI(){
+  let ev1=0;const pr={5:8000000,4:20000,3:300,2:50};for(let k=2;k<=5;k++)ev1+=hyper(k,39,5,39)*(pr[k]||0);
+  const sc=[{name:'單注',bets:1},{name:'小覆蓋(10)',bets:minBets(10,2).ab},{name:'中覆蓋(15)',bets:minBets(15,3).ab}];
+  let rH='';sc.forEach(s=>{const c100=s.bets*50*100,r100=ev1*s.bets*100,roi=((r100/c100-1)*100).toFixed(1),gw=Math.min(Math.max(r100/c100*100,5),100),gc=+roi>=0?'var(--accent3)':'var(--red)';
+    rH+=`<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="font-weight:600">${s.name}</span><span class="mono" style="color:${gc}">${roi}%</span></div><div class="gauge-wrap"><div class="gauge-fill" style="width:${gw}%;background:${gc}"></div><div class="gauge-label">$${c100.toLocaleString()}→$${Math.round(r100).toLocaleString()}</div></div></div>`});
+  document.getElementById('roiAnalysis').innerHTML=rH;
+}
+
+// ===== TRENDS =====
+function renderTrends(draws) {
+  const len = draws.length;
+  if (len < 15) {
+    ['tempShift','oddEvenTrend','bigSmallTrend','overlapTrend','timelineGrid','predTrack'].forEach(id => {
+      document.getElementById(id).innerHTML = '<div style="color:var(--dim);text-align:center;padding:16px;font-size:12px">需要至少15期資料才能生成趨勢圖</div>';
+    });
+    return;
+  }
+
+  // 1. Temperature shift: freq in last 10 vs last 30
+  const last10 = draws.slice(-10), last30 = draws.slice(-Math.min(30, len));
+  const f10 = {}, f30 = {};
+  for (let i=1;i<=39;i++) { f10[i]=0; f30[i]=0; }
+  last10.forEach(d => d.nums.forEach(n => f10[n]++));
+  last30.forEach(d => d.nums.forEach(n => f30[n]++));
+  const shifts = [];
+  for (let i=1;i<=39;i++) {
+    const rate10 = f10[i]/10, rate30 = f30[i]/Math.min(30,len);
+    shifts.push({ num: i, diff: rate10 - rate30, rate10, rate30 });
+  }
+  shifts.sort((a,b) => b.diff - a.diff);
+  const maxDiff = Math.max(...shifts.map(s => Math.abs(s.diff))) || 1;
+  const top = shifts.slice(0, 8);
+  const bottom = shifts.slice(-8).reverse();
+  let tsHTML = '<div style="font-size:11px;color:var(--accent);font-weight:700;margin-bottom:6px">🔺 升溫 TOP 8</div>';
+  top.forEach(s => {
+    const w = Math.abs(s.diff)/maxDiff*100;
+    const col = s.diff > 0 ? 'var(--accent)' : 'var(--accent2)';
+    tsHTML += `<div class="temp-row"><div class="temp-num" style="color:${col}">${s.num}</div><div class="temp-bar-wrap"><div class="temp-bar" style="width:${w}%;background:${col};left:0"></div></div><div class="temp-val" style="color:${col}">${s.diff>0?'+':''}${(s.diff*100).toFixed(0)}%</div></div>`;
+  });
+  tsHTML += '<div style="font-size:11px;color:var(--accent2);font-weight:700;margin:12px 0 6px">🔻 降溫 TOP 8</div>';
+  bottom.forEach(s => {
+    const w = Math.abs(s.diff)/maxDiff*100;
+    tsHTML += `<div class="temp-row"><div class="temp-num" style="color:var(--accent2)">${s.num}</div><div class="temp-bar-wrap"><div class="temp-bar" style="width:${w}%;background:var(--accent2);right:0"></div></div><div class="temp-val" style="color:var(--accent2)">${(s.diff*100).toFixed(0)}%</div></div>`;
+  });
+  document.getElementById('tempShift').innerHTML = tsHTML;
+
+  // 2. Odd/Even trend (sliding window 10)
+  const winSize = 10;
+  const oeData = [];
+  for (let i = winSize; i <= len; i++) {
+    const window = draws.slice(i-winSize, i);
+    const allN = window.flatMap(d => d.nums);
+    const oddPct = allN.filter(n => n%2===1).length / allN.length * 100;
+    oeData.push(oddPct);
+  }
+  const showN = Math.min(40, oeData.length);
+  const oeSlice = oeData.slice(-showN);
+  document.getElementById('oddEvenTrend').innerHTML = buildMiniChart(oeSlice, 50, '奇數%', 'var(--accent)', 'var(--accent2)');
+
+  // 3. Big/Small trend
+  const bsData = [];
+  for (let i = winSize; i <= len; i++) {
+    const window = draws.slice(i-winSize, i);
+    const allN = window.flatMap(d => d.nums);
+    const smallPct = allN.filter(n => n<=19).length / allN.length * 100;
+    bsData.push(smallPct);
+  }
+  const bsSlice = bsData.slice(-showN);
+  document.getElementById('bigSmallTrend').innerHTML = buildMiniChart(bsSlice, 48.7, '小號%', 'var(--accent3)', 'var(--red)');
+
+  // 4. Overlap trend
+  const olData = [];
+  for (let i=1;i<len;i++) {
+    const prev = new Set(draws[i-1].nums);
+    olData.push(draws[i].nums.filter(n => prev.has(n)).length);
+  }
+  const olSlice = olData.slice(-showN);
+  const maxOl = Math.max(...olSlice) || 1;
+  let olHTML = '<div class="mini-chart">';
+  olSlice.forEach((v,i) => {
+    const h = (v/maxOl*100);
+    const col = v>=2 ? 'var(--accent)' : v>=1 ? 'var(--accent2)' : 'var(--dim)';
+    olHTML += `<div class="mini-bar" style="height:${Math.max(h,4)}%;background:${col}" title="重疊${v}個"></div>`;
+  });
+  olHTML += '</div>';
+  document.getElementById('overlapTrend').innerHTML = olHTML;
+
+  // 5. Timeline grid (last 30 draws, show numbers that appeared)
+  const tlDraws = draws.slice(-30);
+  const tlNums = new Set();
+  tlDraws.forEach(d => d.nums.forEach(n => tlNums.add(n)));
+  const sortedNums = [...tlNums].sort((a,b) => a-b);
+  
+  let tlHTML = '<div class="timeline-wrap">';
+  // Header row
+  tlHTML += '<div class="tl-row"><div class="tl-label"></div>';
+  tlDraws.forEach((_,i) => tlHTML += `<div class="tl-header-cell" style="width:14px;font-size:7px;color:var(--dim)">${i+1}</div>`);
+  tlHTML += '</div>';
+  
+  sortedNums.forEach(num => {
+    tlHTML += `<div class="tl-row"><div class="tl-label">${num}</div>`;
+    tlDraws.forEach(d => {
+      const hit = d.nums.includes(num);
+      const bg = hit ? 'var(--accent)' : 'rgba(30,45,74,0.3)';
+      tlHTML += `<div class="tl-cell" style="background:${bg}"></div>`;
+    });
+    tlHTML += '</div>';
+  });
+  tlHTML += '</div>';
+  document.getElementById('timelineGrid').innerHTML = tlHTML;
+
+  // 6. Model prediction tracking (last 20 periods)
+  const trackN = Math.min(20, len - 10);
+  if (trackN < 5) {
+    document.getElementById('predTrack').innerHTML = '<div style="color:var(--dim);text-align:center;padding:16px;font-size:12px">需要更多資料</div>';
+    return;
+  }
+  const trackHits = [];
+  for (let i = len - trackN; i < len; i++) {
+    const td = draws.slice(0, i);
+    const tf = {};
+    for (let n=1;n<=39;n++) tf[n]=0;
+    td.forEach(d => d.nums.forEach(n => tf[n]++));
+    const top10 = Object.entries(tf).sort((a,b)=>b[1]-a[1]).slice(0,10).map(e=>+e[0]);
+    const actual = new Set(draws[i].nums);
+    trackHits.push(top10.filter(n => actual.has(n)).length);
+  }
+  const baseline = (10*5/39);
+  const maxTH = Math.max(...trackHits) || 1;
+  let ptHTML = '<div class="mini-chart">';
+  trackHits.forEach(h => {
+    const pct = h/5*100;
+    const col = h >= 3 ? 'var(--accent3)' : h >= 2 ? 'var(--accent)' : h >= 1 ? 'var(--accent2)' : 'var(--dim)';
+    ptHTML += `<div class="mini-bar" style="height:${Math.max(pct,6)}%;background:${col}" title="命中${h}/5"></div>`;
+  });
+  ptHTML += '</div>';
+  const avgHit = (trackHits.reduce((a,b)=>a+b,0)/trackHits.length).toFixed(2);
+  const hitGe2 = ((trackHits.filter(h=>h>=2).length/trackHits.length)*100).toFixed(0);
+  ptHTML += `<div style="display:flex;justify-content:space-around;margin-top:8px;font-size:11px"><div style="text-align:center"><div class="mono" style="color:var(--accent);font-size:16px;font-weight:700">${avgHit}</div><div style="color:var(--muted)">平均命中/5</div></div><div style="text-align:center"><div class="mono" style="color:var(--accent2);font-size:16px;font-weight:700">${baseline.toFixed(2)}</div><div style="color:var(--muted)">隨機基線</div></div><div style="text-align:center"><div class="mono" style="color:var(--accent3);font-size:16px;font-weight:700">${hitGe2}%</div><div style="color:var(--muted)">命中≥2率</div></div></div>`;
+  document.getElementById('predTrack').innerHTML = ptHTML;
+}
+
+function buildMiniChart(data, midLine, label, colorAbove, colorBelow) {
+  const min = Math.min(...data), max = Math.max(...data);
+  const range = max - min || 1;
+  let html = '<div class="mini-chart" style="position:relative">';
+  // Mid line
+  const midPct = ((midLine - min) / range * 100);
+  html += `<div style="position:absolute;bottom:${Math.max(0,Math.min(100,midPct))}%;left:0;right:0;height:1px;background:var(--dim);opacity:0.5;z-index:1"></div>`;
+  data.forEach(v => {
+    const h = (v - min) / range * 100;
+    const col = v >= midLine ? colorAbove : colorBelow;
+    html += `<div class="mini-bar" style="height:${Math.max(h,4)}%;background:${col}" title="${v.toFixed(1)}%"></div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+// ===== TABS =====
+document.querySelectorAll('.tab').forEach(t=>{t.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.getElementById(t.dataset.panel).classList.add('active')})});
+document.getElementById('poolSlider').addEventListener('input',renderCov);
+document.getElementById('targetSlider').addEventListener('input',renderCov);
+
+// Set default date to today
+document.getElementById('inputDate').value=new Date().toISOString().slice(0,10);
+
+// Auto-advance number inputs
+document.querySelectorAll('.input-num').forEach((inp,i,all)=>{
+  inp.addEventListener('input',()=>{
+    if(inp.value.length>=2 && i<all.length-1) all[i+1].focus();
+  });
+});
+
+// ===== INIT =====
+(async function() {
+  await loadCustomDraws();
+  renderAll();
+})();
+</script>
+</body>
+</html>
