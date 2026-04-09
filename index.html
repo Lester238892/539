@@ -543,10 +543,20 @@ function renderAll() {
   // Manage panel
   document.getElementById('customCount').textContent=`已儲存 ${customDraws.length} 筆雲端資料`;
   let clHTML='';
-  customDraws.slice().reverse().forEach((d)=>{
+  const reversed = customDraws.slice().reverse();
+  const showCount = 5;
+  reversed.slice(0, showCount).forEach((d)=>{
     clHTML+=`<div class="manage-draw-row"><div class="draw-date">${d.date}</div><div class="draw-balls">${d.nums.map(n=>`<div class="ball">${String(n).padStart(2,'0')}</div>`).join('')}</div><button class="btn-danger" onclick="deleteCustomDraw('${d.id}')">刪除</button></div>`;
   });
-  if(customDraws.length===0) clHTML='<div style="font-size:12px;color:var(--dim);text-align:center;padding:20px">尚無自訂資料</div>';
+  if(reversed.length > showCount) {
+    clHTML+=`<div id="hiddenDraws" style="display:none">`;
+    reversed.slice(showCount).forEach((d)=>{
+      clHTML+=`<div class="manage-draw-row"><div class="draw-date">${d.date}</div><div class="draw-balls">${d.nums.map(n=>`<div class="ball">${String(n).padStart(2,'0')}</div>`).join('')}</div><button class="btn-danger" onclick="deleteCustomDraw('${d.id}')">刪除</button></div>`;
+    });
+    clHTML+=`</div>`;
+    clHTML+=`<div style="text-align:center;padding:10px"><button class="btn-secondary" id="toggleDrawsBtn" onclick="toggleDraws()">展開其餘 ${reversed.length - showCount} 筆</button></div>`;
+  }
+  if(customDraws.length===0) clHTML='<div style="font-size:12px;color:var(--dim);text-align:center;padding:20px">尚無雲端資料，在上方新增開獎號碼</div>';
   document.getElementById('customDrawsList').innerHTML=clHTML;
   document.getElementById('dataOverview').innerHTML=`<div style="font-size:12px;color:var(--muted);line-height:1.8"><div>內建資料：<span class="mono" style="color:var(--text)">${builtinCount}</span> 期</div><div>雲端資料：<span class="mono" style="color:var(--accent)">${customDraws.length}</span> 期</div><div>合計：<span class="mono" style="color:var(--accent3)">${allDraws.length}</span> 期</div></div>`;
   
@@ -730,6 +740,18 @@ function buildMiniChart(data, midLine, label, colorAbove, colorBelow) {
   });
   html += '</div>';
   return html;
+}
+
+function toggleDraws() {
+  const el = document.getElementById('hiddenDraws');
+  const btn = document.getElementById('toggleDrawsBtn');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = '收合';
+  } else {
+    el.style.display = 'none';
+    btn.textContent = btn.textContent.replace('收合','展開');
+  }
 }
 
 // ===== TABS =====
