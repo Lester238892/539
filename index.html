@@ -204,6 +204,20 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;heigh
     <div id="predSection"></div>
     <div class="disclaimer">⚠️ 純粹基於統計模型研究產出<br>彩券開獎為獨立隨機事件，歷史數據不影響未來結果</div>
   </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--purple)"></span>區間定位分析</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      統計每個球位（排序後第1~5小）的歷史落點分布，找出高機率區間。
+    </div>
+    <div id="positionAnalysis"></div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent3)"></span>區間定位＋覆蓋策略</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;line-height:1.6">
+      根據區間定位結果，結合模型候選號碼，產出精簡覆蓋組合。
+    </div>
+    <div id="positionStrategy"></div>
+  </div>
 </div>
 
 <!-- TRENDS PANEL -->
@@ -529,6 +543,9 @@ function renderAll() {
   // Prediction
   document.getElementById('predSection').innerHTML=`<div style="text-align:center;font-size:13px;color:var(--muted);margin-bottom:4px">複合模型（近期頻率×間隔×中期趨勢）</div><div style="text-align:center;font-size:10px;color:var(--dim);margin-bottom:12px">基於 ${allDraws.length} 期資料 · 最後更新：${dated.length>0?dated[0].date:'N/A'}</div><div class="pred-nums">${pred.primary.map(n=>`<div class="pred-ball">${String(n).padStart(2,'0')}</div>`).join('')}</div><div style="text-align:center;font-size:12px;color:var(--dim);margin:12px 0 4px">備選</div><div class="pred-nums">${pred.secondary.map(n=>`<div class="pred-ball" style="border-color:var(--accent2);color:var(--accent2);background:rgba(59,130,246,.06)">${String(n).padStart(2,'0')}</div>`).join('')}</div>`;
   
+  // Position analysis
+  try { renderPositionAnalysis(allDraws, pred); } catch(e) { console.warn('Position render error:', e); }
+  
   // Coverage
   renderCov();
   renderStrats();
@@ -590,6 +607,154 @@ function renderROI(){
   let rH='';sc.forEach(s=>{const c100=s.bets*50*100,r100=ev1*s.bets*100,roi=((r100/c100-1)*100).toFixed(1),gw=Math.min(Math.max(r100/c100*100,5),100),gc=+roi>=0?'var(--accent3)':'var(--red)';
     rH+=`<div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="font-weight:600">${s.name}</span><span class="mono" style="color:${gc}">${roi}%</span></div><div class="gauge-wrap"><div class="gauge-fill" style="width:${gw}%;background:${gc}"></div><div class="gauge-label">$${c100.toLocaleString()}→$${Math.round(r100).toLocaleString()}</div></div></div>`});
   document.getElementById('roiAnalysis').innerHTML=rH;
+}
+
+// ===== POSITION ANALYSIS =====
+function renderPositionAnalysis(draws, pred) {
+  const len = draws.length;
+  if (len < 20) {
+    document.getElementById('positionAnalysis').innerHTML = '<div style="color:var(--dim);text-align:center;padding:16px;font-size:12px">需要至少20期資料</div>';
+    document.getElementById('positionStrategy').innerHTML = '';
+    return;
+  }
+  
+  // Collect position data (sorted: pos 0=smallest, pos 4=largest)
+  const posData = [[],[],[],[],[]];
+  draws.forEach(d => {
+    const s = [...d.nums].sort((a,b)=>a-b);
+    s.forEach((n,i) => posData[i].push(n));
+  });
+  
+  const posNames = ['第1球（最小）','第2球','第3球（中間）','第4球','第5球（最大）'];
+  const posColors = ['var(--accent3)','var(--accent2)','var(--purple)','var(--accent)','var(--red)'];
+  
+  // Calculate stats for each position
+  const posStats = posData.map((arr, i) => {
+    const sorted = [...arr].sort((a,b)=>a-b);
+    const min = sorted[0];
+    const max = sorted[sorted.length-1];
+    const avg = (arr.reduce((a,b)=>a+b,0)/arr.length);
+    const p10 = sorted[Math.floor(sorted.length*0.1)];
+    const p90 = sorted[Math.floor(sorted.length*0.9)];
+    const median = sorted[Math.floor(sorted.length*0.5)];
+    
+    // Frequency in the 80% range (p10-p90)
+    const inRange = arr.filter(n => n>=p10 && n<=p90).length;
+    const rangePct = (inRange/arr.length*100).toFixed(0);
+    
+    // Recent 20 draws trend
+    const recent = draws.slice(-20).map(d => [...d.nums].sort((a,b)=>a-b)[i]);
+    const recentAvg = (recent.reduce((a,b)=>a+b,0)/recent.length);
+    
+    return { min, max, avg, p10, p90, median, rangePct, recentAvg, recent };
+  });
+  
+  // Render position distribution
+  let paHTML = '';
+  posStats.forEach((ps, i) => {
+    // Mini distribution bar showing p10-p90 range on a 1-39 scale
+    const leftPct = ((ps.p10-1)/38*100).toFixed(0);
+    const widthPct = ((ps.p90-ps.p10)/38*100).toFixed(0);
+    const avgPct = ((ps.avg-1)/38*100).toFixed(0);
+    const recentAvgPct = ((ps.recentAvg-1)/38*100).toFixed(0);
+    
+    paHTML += `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:700;color:${posColors[i]}">${posNames[i]}</span>
+        <span class="mono" style="font-size:11px;color:var(--muted)">80%落在 ${ps.p10}-${ps.p90}</span>
+      </div>
+      <div style="position:relative;height:24px;background:var(--surface2);border-radius:6px;overflow:visible">
+        <div style="position:absolute;left:${leftPct}%;width:${widthPct}%;height:100%;background:${posColors[i]};opacity:0.25;border-radius:6px"></div>
+        <div style="position:absolute;left:${avgPct}%;top:2px;bottom:2px;width:2px;background:${posColors[i]};border-radius:1px" title="歷史平均"></div>
+        <div style="position:absolute;left:${recentAvgPct}%;top:0;bottom:0;width:3px;background:#fff;border-radius:1px;opacity:0.8" title="近20期平均"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:2px">
+        <span>1</span><span>10</span><span>20</span><span>30</span><span>39</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:4px;font-size:10px;color:var(--muted)">
+        <span>均值 <span class="mono" style="color:${posColors[i]}">${ps.avg.toFixed(1)}</span></span>
+        <span>近20期 <span class="mono" style="color:#fff">${ps.recentAvg.toFixed(1)}</span></span>
+        <span>中位數 <span class="mono">${ps.median}</span></span>
+      </div>
+    </div>`;
+  });
+  document.getElementById('positionAnalysis').innerHTML = paHTML;
+  
+  // === Position Strategy ===
+  // Assign candidate numbers from prediction model to position zones
+  const allCandidates = [...pred.primary, ...pred.secondary];
+  
+  // Zone assignment based on position stats
+  const zones = posStats.map((ps, i) => ({
+    pos: i,
+    name: posNames[i],
+    lo: ps.p10,
+    hi: ps.p90,
+    color: posColors[i]
+  }));
+  
+  // Find candidates that fall into each zone
+  const zoneCandidates = zones.map(z => {
+    return allCandidates.filter(n => n >= z.lo && n <= z.hi).sort((a,b)=>a-b);
+  });
+  
+  // Generate smart combinations: pick 1 from each zone
+  function generateCombos(zc, maxCombos) {
+    const combos = [];
+    const z0 = zc[0].length ? zc[0] : [zones[0].lo];
+    const z1 = zc[1].length ? zc[1] : [zones[1].lo];
+    const z2 = zc[2].length ? zc[2] : [zones[2].lo];
+    const z3 = zc[3].length ? zc[3] : [zones[3].lo];
+    const z4 = zc[4].length ? zc[4] : [zones[4].lo];
+    
+    outer:
+    for(const a of z0) for(const b of z1) for(const c of z2) for(const d of z3) for(const e of z4) {
+      const nums = [a,b,c,d,e];
+      if(new Set(nums).size === 5) {
+        combos.push(nums.sort((x,y)=>x-y));
+        if(combos.length >= maxCombos) break outer;
+      }
+    }
+    return combos;
+  }
+  
+  const combos = generateCombos(zoneCandidates, 10);
+  
+  let psHTML = '';
+  
+  // Zone summary
+  psHTML += '<div style="margin-bottom:16px">';
+  zones.forEach((z,i) => {
+    const cands = zoneCandidates[i];
+    psHTML += `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:11px;color:${z.color};font-weight:700;width:100px">${z.name}</span>
+      <span class="mono" style="font-size:11px;color:var(--muted);width:60px">${z.lo}-${z.hi}</span>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${cands.map(n=>`<span class="mono" style="font-size:12px;color:${z.color};background:rgba(255,255,255,0.05);padding:2px 6px;border-radius:4px">${String(n).padStart(2,'0')}</span>`).join('')}</div>
+    </div>`;
+  });
+  psHTML += '</div>';
+  
+  // Combo output
+  if(combos.length > 0) {
+    psHTML += `<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">產出組合（每球位各取1號，共 ${combos.length} 組）</div>`;
+    combos.forEach((combo, i) => {
+      psHTML += `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <span class="mono" style="font-size:11px;color:var(--dim);width:24px">#${i+1}</span>
+        <div style="display:flex;gap:6px">${combo.map((n,j)=>`<div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;border:2px solid ${posColors[j]};color:${posColors[j]}">${String(n).padStart(2,'0')}</div>`).join('')}</div>
+      </div>`;
+    });
+  } else {
+    psHTML += '<div style="color:var(--dim);text-align:center;padding:12px;font-size:12px">候選號碼不足以覆蓋所有球位</div>';
+  }
+  
+  psHTML += `<div class="disclaimer" style="margin-top:16px">
+    使用方式：每個球位有一個高機率區間（80%歷史命中率）<br>
+    模型從候選池中篩選落在各區間內的號碼，交叉組合產出精簡注數<br>
+    每期成本 = 組合數 × $50
+  </div>`;
+  
+  document.getElementById('positionStrategy').innerHTML = psHTML;
 }
 
 // ===== TRENDS =====
